@@ -205,21 +205,27 @@ def git_capture(*args: str) -> str:
 
 def push_changes() -> int:
     print("\n→ Staging, committing, pushing...")
+    # Pull first to minimize divergence window.
+    git("pull", "--rebase", "--autostash")
+
     if git("add", ".") != 0:
         return 1
-    status = git_capture("diff", "--staged", "--name-only").strip()
-    if not status:
+    if not git_capture("diff", "--staged", "--name-only").strip():
         print("Nothing to commit.")
-        # Still pull in case remote has bot commits we don't have locally.
-        git("pull", "--rebase", "--autostash")
         return 0
     if git("commit", "-m", "Add image") != 0:
         return 1
-    # Pull remote changes (e.g. bot manifest commits) before pushing.
-    if git("pull", "--rebase", "--autostash") != 0:
-        print("Rebase failed. Resolve conflicts manually, then run: git push", file=sys.stderr)
-        return 1
-    return git("push")
+
+    # Retry push: pull --rebase + push, up to 3 attempts.
+    for attempt in range(1, 4):
+        if git("push") == 0:
+            return 0
+        print(f"\nPush rejected (attempt {attempt}). Rebasing on remote and retrying...")
+        if git("pull", "--rebase", "--autostash") != 0:
+            print("Rebase failed. Resolve conflicts manually, then: git push", file=sys.stderr)
+            return 1
+    print("Push still failing after retries. Resolve manually.", file=sys.stderr)
+    return 1
 
 
 def main() -> int:

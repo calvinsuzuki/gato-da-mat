@@ -11,8 +11,8 @@ Static memorial site for the cat that lived at USP. Hosted on GitHub Pages.
 
 ## Adding photos (the easy way)
 
-1. Drop image files into `images/` and push to `main`.
-2. The GitHub Action (`.github/workflows/manifest.yml`) regenerates `images.json` automatically and commits it back. Pages redeploys. Done.
+1. Drop image / video files into `images/`.
+2. Run `python3 scripts/generate-manifest.py --push` — regenerates `images.json` (and video thumbnails) and pushes everything to `main`. Pages redeploys.
 
 **Order:** photos are sorted newest-first by EXIF `DateTimeOriginal` (the date the photo was taken). Falls back to EXIF `DateTime`, then file mtime, then filename if no EXIF is available.
 
