@@ -26,7 +26,7 @@ const I18N = {
     error: 'Não foi possível carregar as fotos.',
     footer: 'USP São Carlos · Calvin Suzuki',
     modalTitle: 'Compartilhe suas fotos',
-    modalBody: 'Envie suas fotos e histórias da gata para:',
+    modalBody: 'Envie suas fotos e histórias da gata Bigode para:',
     modalNote: 'As fotos serão adicionadas manualmente. Inclua seu nome (ou anônimo) e uma legenda opcional.',
     copy: 'Copiar',
     copied: 'Copiado!',
