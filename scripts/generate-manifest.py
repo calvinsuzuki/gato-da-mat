@@ -51,25 +51,29 @@ def media_type(path: Path) -> str:
     return "video" if path.suffix.lower() in VIDEO_EXT else "image"
 
 
-FILENAME_DATE_RE = re.compile(
-    r"(?P<y>\d{4})[-_:.]?(?P<m>\d{2})[-_:.]?(?P<d>\d{2})"
-    r"(?:[ _T-]?(?P<H>\d{2})[-_:.]?(?P<M>\d{2})(?:[-_:.]?(?P<S>\d{2}))?)?"
-)
+FILENAME_DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+FILENAME_TIME_RE = re.compile(r"(\d{2})[.:\-_](\d{2})(?:[.:\-_](\d{2}))?")
 
 
 def filename_date(name: str) -> datetime | None:
-    m = FILENAME_DATE_RE.search(name)
-    if not m:
+    """Find a YYYY-MM-DD date and an optional HH.MM[.SS] time after it.
+    Handles WhatsApp pattern: 'YYYY-MM-DD at HH.MM.SS'."""
+    dm = FILENAME_DATE_RE.search(name)
+    if not dm:
         return None
     try:
-        return datetime(
-            int(m["y"]),
-            int(m["m"]),
-            int(m["d"]),
-            int(m["H"] or 0),
-            int(m["M"] or 0),
-            int(m["S"] or 0),
-        )
+        y, mo, d = int(dm.group(1)), int(dm.group(2)), int(dm.group(3))
+        # Look for time only in the substring after the date.
+        rest = name[dm.end():]
+        h, mi, s = 0, 0, 0
+        tm = FILENAME_TIME_RE.search(rest)
+        if tm:
+            h = int(tm.group(1))
+            mi = int(tm.group(2))
+            s = int(tm.group(3) or 0)
+            if not (0 <= h < 24 and 0 <= mi < 60 and 0 <= s < 60):
+                h, mi, s = 0, 0, 0
+        return datetime(y, mo, d, h, mi, s)
     except ValueError:
         return None
 
@@ -133,9 +137,9 @@ def video_poster(video_path: Path) -> Path | None:
         return None
 
 
-def photo_date(path: Path) -> datetime:
-    """Best-available timestamp for ordering. Stable across machines:
-    EXIF (image) / ffprobe (video) → filename date → mtime."""
+def photo_date(path: Path) -> datetime | None:
+    """Capture timestamp from metadata. Stable across machines:
+    EXIF (image) / ffprobe (video) → filename date. Returns None if unknown."""
     if media_type(path) == "video":
         dt = ffprobe_creation_time(path)
         if dt:
@@ -152,11 +156,7 @@ def photo_date(path: Path) -> datetime:
         except (ImportError, UnidentifiedImageError, OSError, AttributeError):
             pass
 
-    dt = filename_date(path.name)
-    if dt:
-        return dt
-
-    return datetime.fromtimestamp(path.stat().st_mtime)
+    return filename_date(path.name)
 
 
 def collect_images() -> list[dict]:
@@ -176,8 +176,12 @@ def collect_images() -> list[dict]:
                 poster = f"thumbs/{thumb.name}"
         rows.append((photo_date(p), p.name, kind, poster))
 
-    # Newest first, then filename desc as tiebreak.
-    rows.sort(key=lambda e: (e[0], e[1]), reverse=True)
+    # Sort: dated files first (newest → oldest), undated files last (by filename desc).
+    DATED = 0
+    UNDATED = 1
+    rows.sort(
+        key=lambda e: (UNDATED if e[0] is None else DATED, -(e[0].timestamp() if e[0] else 0), e[1].lower())
+    )
     out = []
     for _, name, kind, poster in rows:
         entry = {"file": name, "type": kind}
