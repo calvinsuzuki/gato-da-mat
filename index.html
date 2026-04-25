@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="title">Math Cat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <h1 data-i18n="heading">In memory</h1>
+      <button class="share" id="share-btn" type="button" data-i18n="share">
+        Share your images
+      </button>
+    </div>
+  </header>
+
+  <main class="grid" id="grid">
+    <p class="state" id="state" data-i18n="loading">Loading…</p>
+  </main>
+
+  <footer>
+    <p data-i18n="footer">USP · in memory</p>
+  </footer>
+
+  <div class="modal" id="share-modal" hidden aria-hidden="true" role="dialog" aria-labelledby="share-title">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card" role="document">
+      <button class="modal-close" type="button" data-close aria-label="Close" data-i18n-attr="aria-label:closeAria">&times;</button>
+      <h2 id="share-title" data-i18n="modalTitle">Share your images</h2>
+      <p class="modal-body" data-i18n="modalBody">Send your photos and stories of the cat to:</p>
+      <div class="email-row">
+        <span class="email-text" id="share-email">calvinssdcamargo@usp.br</span>
+        <button class="copy-btn" id="copy-btn" type="button" data-i18n="copy">Copy</button>
+      </div>
+      <p class="modal-note" data-i18n="modalNote">Photos will be added manually. Include your name (or anonymous) and an optional caption.</p>
+    </div>
+  </div>
+
+  <div class="lightbox" id="lightbox" hidden aria-hidden="true">
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close" data-i18n-attr="aria-label:closeAria">&times;</button>
+    <div class="lightbox-track" id="lightbox-track"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
