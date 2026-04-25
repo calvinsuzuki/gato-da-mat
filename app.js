@@ -18,7 +18,7 @@ const I18N = {
     openPhotoAria: (i) => `Open photo ${i}`,
   },
   pt: {
-    title: 'Gato da Mat',
+    title: 'Gata da Mat',
     heading: 'Em memória',
     share: 'Compartilhe suas fotos',
     loading: 'Carregando…',
@@ -26,7 +26,7 @@ const I18N = {
     error: 'Não foi possível carregar as fotos.',
     footer: 'USP São Carlos · Calvin Suzuki',
     modalTitle: 'Compartilhe suas fotos',
-    modalBody: 'Envie suas fotos e histórias do gato para:',
+    modalBody: 'Envie suas fotos e histórias da gata para:',
     modalNote: 'As fotos serão adicionadas manualmente. Inclua seu nome (ou anônimo) e uma legenda opcional.',
     copy: 'Copiar',
     copied: 'Copiado!',
