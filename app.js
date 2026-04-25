@@ -90,6 +90,13 @@ const captionFor = (entry, captions) => {
 
 const fileFor = (entry) => (typeof entry === 'string' ? entry : entry.file);
 
+const VIDEO_EXT = /\.(mp4|mov|webm|m4v|ogv)$/i;
+
+const typeFor = (entry) => {
+  if (typeof entry === 'object' && entry.type) return entry.type;
+  return VIDEO_EXT.test(fileFor(entry)) ? 'video' : 'image';
+};
+
 const renderGrid = (images, captions) => {
   if (!images.length) {
     STATE.textContent = T.empty;
@@ -98,10 +105,20 @@ const renderGrid = (images, captions) => {
   GRID.innerHTML = images
     .map((entry, i) => {
       const file = fileFor(entry);
+      const kind = typeFor(entry);
       const src = `images/${encodeURIComponent(file)}`;
+      const poster =
+        typeof entry === 'object' && entry.poster
+          ? `images/${entry.poster.split('/').map(encodeURIComponent).join('/')}`
+          : src;
+      const media =
+        kind === 'video'
+          ? `<img src="${poster}" alt="" loading="lazy" />
+             <span class="play-badge" aria-hidden="true">▶</span>`
+          : `<img src="${src}" alt="" loading="lazy" />`;
       return `
-        <button class="tile" data-index="${i}" aria-label="${T.openPhotoAria(i + 1)}">
-          <img src="${src}" alt="" loading="lazy" />
+        <button class="tile tile-${kind}" data-index="${i}" aria-label="${T.openPhotoAria(i + 1)}">
+          ${media}
         </button>`;
     })
     .join('');
@@ -114,19 +131,63 @@ const renderGrid = (images, captions) => {
   });
 };
 
+let lightboxObserver = null;
+
 const renderLightbox = (images, captions) => {
   LIGHTBOX_TRACK.innerHTML = images
     .map((entry, i) => {
       const file = fileFor(entry);
+      const kind = typeFor(entry);
       const src = `images/${encodeURIComponent(file)}`;
+      const poster =
+        typeof entry === 'object' && entry.poster
+          ? `images/${entry.poster.split('/').map(encodeURIComponent).join('/')}`
+          : '';
       const caption = captionFor(entry, captions);
+      const media =
+        kind === 'video'
+          ? `<video data-src="${src}" ${poster ? `poster="${poster}"` : ''} controls playsinline muted preload="none"></video>`
+          : `<img data-src="${src}" alt="" />`;
       return `
-        <div class="lightbox-slide" data-index="${i}">
-          <img src="${src}" alt="" />
+        <div class="lightbox-slide" data-index="${i}" data-type="${kind}">
+          ${media}
           ${caption ? `<p class="lightbox-caption">${escapeHtml(caption)}</p>` : ''}
         </div>`;
     })
     .join('');
+
+  if (lightboxObserver) lightboxObserver.disconnect();
+  lightboxObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e) => {
+        const slide = e.target;
+        const media = slide.querySelector('img, video');
+        if (!media) return;
+
+        const active = e.intersectionRatio >= 0.6;
+        const nearby = e.isIntersecting;
+
+        // Lazy-load when slide is anywhere near viewport.
+        if (nearby && media.dataset.src && !media.src) {
+          media.src = media.dataset.src;
+        }
+
+        if (media.tagName !== 'VIDEO') return;
+
+        if (active) {
+          const p = media.play();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        } else {
+          media.pause();
+          if (!nearby) media.currentTime = 0;
+        }
+      });
+    },
+    { root: LIGHTBOX, rootMargin: '200px 0px', threshold: [0, 0.6] }
+  );
+  LIGHTBOX_TRACK.querySelectorAll('.lightbox-slide').forEach((s) =>
+    lightboxObserver.observe(s)
+  );
 };
 
 const openLightbox = (images, captions, startIndex) => {
@@ -135,13 +196,28 @@ const openLightbox = (images, captions, startIndex) => {
   LIGHTBOX.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
   const target = LIGHTBOX_TRACK.querySelector(`[data-index="${startIndex}"]`);
-  if (target) target.scrollIntoView({ behavior: 'instant', block: 'start' });
+  if (target) {
+    // Force-load this slide immediately, even before observer fires.
+    const media = target.querySelector('img, video');
+    if (media && media.dataset.src && !media.src) {
+      media.src = media.dataset.src;
+    }
+    target.scrollIntoView({ behavior: 'instant', block: 'start' });
+    if (media && media.tagName === 'VIDEO') {
+      const p = media.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    }
+  }
 };
 
 const closeLightbox = () => {
   LIGHTBOX.hidden = true;
   LIGHTBOX.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
+  LIGHTBOX_TRACK.querySelectorAll('video').forEach((v) => {
+    v.pause();
+    v.currentTime = 0;
+  });
 };
 
 LIGHTBOX_CLOSE.addEventListener('click', closeLightbox);
