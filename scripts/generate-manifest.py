@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -48,6 +49,50 @@ def parse_exif_dt(raw: str | None) -> datetime | None:
 
 def media_type(path: Path) -> str:
     return "video" if path.suffix.lower() in VIDEO_EXT else "image"
+
+
+FILENAME_DATE_RE = re.compile(
+    r"(?P<y>\d{4})[-_:.]?(?P<m>\d{2})[-_:.]?(?P<d>\d{2})"
+    r"(?:[ _T-]?(?P<H>\d{2})[-_:.]?(?P<M>\d{2})(?:[-_:.]?(?P<S>\d{2}))?)?"
+)
+
+
+def filename_date(name: str) -> datetime | None:
+    m = FILENAME_DATE_RE.search(name)
+    if not m:
+        return None
+    try:
+        return datetime(
+            int(m["y"]),
+            int(m["m"]),
+            int(m["d"]),
+            int(m["H"] or 0),
+            int(m["M"] or 0),
+            int(m["S"] or 0),
+        )
+    except ValueError:
+        return None
+
+
+def ffprobe_creation_time(path: Path) -> datetime | None:
+    try:
+        out = subprocess.check_output(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format_tags=creation_time",
+                "-of", "default=nw=1:nk=1",
+                str(path),
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        if not out:
+            return None
+        # ISO 8601 with optional fractional seconds and Z.
+        out = out.replace("Z", "+00:00")
+        return datetime.fromisoformat(out).replace(tzinfo=None)
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        return None
 
 
 def have_ffmpeg() -> bool:
@@ -89,24 +134,27 @@ def video_poster(video_path: Path) -> Path | None:
 
 
 def photo_date(path: Path) -> datetime:
-    """Best-available timestamp for ordering. Returns mtime if EXIF unavailable."""
+    """Best-available timestamp for ordering. Stable across machines:
+    EXIF (image) / ffprobe (video) → filename date → mtime."""
     if media_type(path) == "video":
-        return datetime.fromtimestamp(path.stat().st_mtime)
+        dt = ffprobe_creation_time(path)
+        if dt:
+            return dt
+    else:
+        try:
+            from PIL import Image, UnidentifiedImageError
+            with Image.open(path) as img:
+                exif = img.getexif()
+                for tag in (EXIF_DATETIME_ORIGINAL, EXIF_DATETIME):
+                    dt = parse_exif_dt(exif.get(tag))
+                    if dt:
+                        return dt
+        except (ImportError, UnidentifiedImageError, OSError, AttributeError):
+            pass
 
-    try:
-        from PIL import Image, UnidentifiedImageError
-    except ImportError:
-        return datetime.fromtimestamp(path.stat().st_mtime)
-
-    try:
-        with Image.open(path) as img:
-            exif = img.getexif()
-            for tag in (EXIF_DATETIME_ORIGINAL, EXIF_DATETIME):
-                dt = parse_exif_dt(exif.get(tag))
-                if dt:
-                    return dt
-    except (UnidentifiedImageError, OSError, AttributeError):
-        pass
+    dt = filename_date(path.name)
+    if dt:
+        return dt
 
     return datetime.fromtimestamp(path.stat().st_mtime)
 
@@ -158,8 +206,14 @@ def push_changes() -> int:
     status = git_capture("diff", "--staged", "--name-only").strip()
     if not status:
         print("Nothing to commit.")
+        # Still pull in case remote has bot commits we don't have locally.
+        git("pull", "--rebase", "--autostash")
         return 0
     if git("commit", "-m", "Add image") != 0:
+        return 1
+    # Pull remote changes (e.g. bot manifest commits) before pushing.
+    if git("pull", "--rebase", "--autostash") != 0:
+        print("Rebase failed. Resolve conflicts manually, then run: git push", file=sys.stderr)
         return 1
     return git("push")
 
