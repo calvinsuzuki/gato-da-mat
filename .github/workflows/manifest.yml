@@ -6,7 +6,7 @@ on:
     paths:
       - 'images/**'
       - '.github/workflows/manifest.yml'
-      - 'scripts/generate-manifest.sh'
+      - 'scripts/generate-manifest.py'
   workflow_dispatch:
 
 permissions:
@@ -18,8 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Pillow
+        run: pip install --quiet pillow
+
       - name: Generate images.json
-        run: bash scripts/generate-manifest.sh
+        run: python3 scripts/generate-manifest.py
 
       - name: Commit if changed
         run: |

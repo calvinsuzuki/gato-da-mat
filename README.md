@@ -14,12 +14,11 @@ Static memorial site for the cat that lived at USP. Hosted on GitHub Pages.
 1. Drop image files into `images/` and push to `main`.
 2. The GitHub Action (`.github/workflows/manifest.yml`) regenerates `images.json` automatically and commits it back. Pages redeploys. Done.
 
-**Tip — control order:** files are sorted reverse-alphabetical, so prefix with a date for newest-first ordering:
+**Order:** photos are sorted newest-first by EXIF `DateTimeOriginal` (the date the photo was taken). Falls back to EXIF `DateTime`, then file mtime, then filename if no EXIF is available.
 
-```
-images/2026-04-25-courtyard.jpg
-images/2026-04-20-bench.jpg
-images/2026-03-10-snoozing.png
+Requires Pillow:
+```bash
+pip install pillow
 ```
 
 **Supported formats:** jpg, jpeg, png, webp, gif, avif.
@@ -44,10 +43,8 @@ Files without an entry render with no caption. Safe to leave the file as `{}`.
 If you don't want to rely on the GitHub Action, run the script locally before pushing:
 
 ```bash
-bash scripts/generate-manifest.sh
-git add images images.json
-git commit -m "Add new photos"
-git push
+python3 scripts/generate-manifest.py             # regenerate manifest only
+python3 scripts/generate-manifest.py --push      # regenerate + git add . + commit + push
 ```
 
 ## Run locally
